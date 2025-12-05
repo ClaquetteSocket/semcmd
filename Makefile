@@ -1,0 +1,47 @@
+.PHONY : clean all install install-completions uninstall
+
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -pedantic -D_REENTRANT
+PREFIX ?= /usr/local
+BINDIR = $(PREFIX)/bin
+
+BASH_COMPLETION_DIR = $(PREFIX)/share/bash-completion/completions
+
+ifeq ($(PREFIX),/usr/local)
+  ZSH_COMPLETION_DIR = $(PREFIX)/share/zsh/site-functions
+else
+  ifneq ($(wildcard $(PREFIX)/share/zinit/completions),)
+    ZSH_COMPLETION_DIR = $(PREFIX)/share/zinit/completions
+  else
+    ZSH_COMPLETION_DIR = $(HOME)/.zfunc
+  endif
+endif
+
+all : semcmd
+
+semcmd : Makefile src/semcmd.c
+	$(CC) $(CFLAGS) src/semcmd.c -o semcmd
+
+define install_error
+	echo "Permission denied: $1"; \
+	echo "Try: make $@ PREFIX=\$$HOME/.local"; \
+	exit 1
+endef
+
+install : semcmd
+	@install -d "$(BINDIR)" || { $(call install_error,creating $(BINDIR)); }
+	@install -m 755 semcmd "$(BINDIR)" || { $(call install_error,installing semcmd to $(BINDIR)); }
+
+install-completions : install
+	@install -d "$(BASH_COMPLETION_DIR)" || { $(call install_error,creating $(BASH_COMPLETION_DIR)); }
+	@install -d "$(ZSH_COMPLETION_DIR)" || { $(call install_error,creating $(ZSH_COMPLETION_DIR)); }
+	@install -m 644 completions/_semcmd_completion.bash "$(BASH_COMPLETION_DIR)/semcmd" || { $(call install_error,installing bash completion); }
+	@install -m 644 completions/_semcmd "$(ZSH_COMPLETION_DIR)/_semcmd" || { $(call install_error,installing zsh completion); }
+
+uninstall :
+	@rm -f "$(BINDIR)/semcmd" || { $(call install_error,removing semcmd from $(BINDIR)); }
+	@rm -f "$(BASH_COMPLETION_DIR)/semcmd" || { $(call install_error,removing bash completion from $(BASH_COMPLETION_DIR)); }
+	@rm -f "$(ZSH_COMPLETION_DIR)/_semcmd" || { $(call install_error,removing zsh completion from $(ZSH_COMPLETION_DIR)); }
+
+clean :
+	rm -f semcmd
