@@ -293,7 +293,7 @@ When `semcmd` encounters an error, it returns a specific exit code to help diagn
 | **3** | `OPEN_ERR` | Failed to open semaphore | Lock doesn't exist, permissions |
 | **4** | `CLOSE_ERR` | Failed to close semaphore | System error, corrupted state |
 | **5** | `READ_ERR` | Failed to read semaphore value | System error, invalid semaphore |
-| **6** | `UNLINK_ERR` | Failed to delete semaphore | Permissions, system error |
+| **6** | `UNLINK_ERR` | Failed to delete semaphore | Lock in use (without `--force`), permissions, system error |
 | **7** | `LOCK_ERR` | Failed to acquire lock | Interrupted system call |
 | **8** | `UNLOCK_ERR` | Failed to release lock | Not locked, system error |
 | **9** | `BADVAL_ERR` | Invalid semaphore value | Corrupted semaphore state |

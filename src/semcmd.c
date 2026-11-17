@@ -488,14 +488,16 @@ static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd)
  * @param first The function to call before the loop. It takes the number of
  * locks found as an argument.
  * @param action The function to call for each lock found. It takes a sync_cmd
- * structure as an argument.
+ * structure as an argument and returns 0 on success, non-zero on failure.
  * @param nothing The function to call if no lock is found.
  * @param cmd The sync_cmd structure containing the prefix of `semcmd` semaphore
  * files.
+ * @return The number of locks for which the action failed.
  */
-static void foreach_sync(void (*first)(int num), void (*action)(const struct sync_cmd *),
-			 void (*nothing)(), struct sync_cmd *cmd)
+static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_cmd *),
+			void (*nothing)(), struct sync_cmd *cmd)
 {
+	int failures = 0;
 	glob_t gstruct;
 
 	int size = snprintf(NULL, 0, "%s/sem.%s.*", SHM_DIR, cmd->prefix);
@@ -518,7 +520,8 @@ static void foreach_sync(void (*first)(int num), void (*action)(const struct syn
 		for (int i = 0; i < (int)gstruct.gl_pathc; i++) {
 			cmd->shm_file = gstruct.gl_pathv[i] + sizeof(SHM_DIR) + 4;
 			cmd->name = gstruct.gl_pathv[i] + strlen(pattern) - 1;
-			action(cmd);
+			if (action(cmd))
+				failures++;
 		}
 	} else {
 		nothing();
@@ -526,6 +529,7 @@ static void foreach_sync(void (*first)(int num), void (*action)(const struct syn
 
 	globfree(&gstruct);
 	free(pattern);
+	return failures;
 }
 
 /*******************************************************************************
@@ -682,10 +686,12 @@ static void infos(const struct sync_cmd *cmd, const char *indent)
 	close_sync(my_sem, cmd);
 }
 
-static void clean_action(const struct sync_cmd *cmd)
+static int clean_action(const struct sync_cmd *cmd)
 {
-	if (!destroy(cmd))
-		fprintf(stdout, "Lock %s has been deleted.\n", cmd->name);
+	if (destroy(cmd))
+		return 1;
+	fprintf(stdout, "Lock %s has been deleted.\n", cmd->name);
+	return 0;
 }
 static void clean_nothing()
 {
@@ -702,19 +708,21 @@ static void clean_nothing()
  *
  * @param cmd The sync_cmd structure containing the prefix to identify `semcmd`
  * semaphore files.
+ * @return The number of locks that could not be destroyed.
  */
-static void clean(struct sync_cmd *cmd)
+static int clean(struct sync_cmd *cmd)
 {
-	foreach_sync(NULL, clean_action, clean_nothing, cmd);
+	return foreach_sync(NULL, clean_action, clean_nothing, cmd);
 }
 
 static void list_first(int num)
 {
 	fprintf(stdout, "In this system, you have created %d lock%s:\n", num, num >= 2 ? "s" : "");
 }
-static void list_action(const struct sync_cmd *cmd)
+static int list_action(const struct sync_cmd *cmd)
 {
 	infos(cmd, "  - ");
+	return 0;
 }
 static void list_nothing()
 {
@@ -761,13 +769,15 @@ int main(int argc, char **argv)
 		unlock(&user_cmd);
 	else if (!strcmp(user_cmd.cmd, "infos"))
 		infos(&user_cmd, NULL);
-	else if (!strcmp(user_cmd.cmd, "destroy"))
-		destroy(&user_cmd);
-	else if (!strcmp(user_cmd.cmd, "list"))
+	else if (!strcmp(user_cmd.cmd, "destroy")) {
+		if (destroy(&user_cmd))
+			return UNLINK_ERR;
+	} else if (!strcmp(user_cmd.cmd, "list"))
 		list(&user_cmd);
-	else if (!strcmp(user_cmd.cmd, "clean"))
-		clean(&user_cmd);
-	else {
+	else if (!strcmp(user_cmd.cmd, "clean")) {
+		if (clean(&user_cmd))
+			return UNLINK_ERR;
+	} else {
 		usage(stderr, argv[0], "The command is not valid.", SHORT_USAGE);
 		return USAGE_ERR;
 	}
