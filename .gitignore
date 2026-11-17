@@ -1,0 +1,23 @@
+# Build output
+/semcmd
+*.o
+*.d
+*.a
+*.so
+*.dSYM/
+
+# Debugging / profiling
+core
+core.*
+vgcore.*
+*.gcda
+*.gcno
+*.gcov
+gmon.out
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
