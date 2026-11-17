@@ -270,7 +270,7 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 			if (!(strcmp(argv[optind], "create") && strcmp(argv[optind], "lock") &&
 			      strcmp(argv[optind], "unlock") && strcmp(argv[optind], "destroy") &&
 			      strcmp(argv[optind], "infos"))) {
-				usage(stdout, argv[0],
+				usage(stderr, argv[0],
 				      "The command 'create', 'lock', 'unlock', 'destroy' or 'infos' requires a lock name.",
 				      SHORT_USAGE);
 				exit(USAGE_ERR);
@@ -278,17 +278,17 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 			break;
 		case 2:
 			if (!strcmp(argv[optind], "clean") || !strcmp(argv[optind], "list")) {
-				usage(stdout, argv[0],
+				usage(stderr, argv[0],
 				      "The command 'clean' or 'list' does not require a lock name.",
 				      SHORT_USAGE);
 				exit(USAGE_ERR);
 			}
 			break;
 		case 0:
-			usage(stdout, argv[0], "The command is missing.", SHORT_USAGE);
+			usage(stderr, argv[0], "The command is missing.", SHORT_USAGE);
 			exit(USAGE_ERR);
 		default:
-			usage(stdout, argv[0], "Too many arguments.", SHORT_USAGE);
+			usage(stderr, argv[0], "Too many arguments.", SHORT_USAGE);
 			exit(USAGE_ERR);
 	}
 
@@ -768,7 +768,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(user_cmd.cmd, "clean"))
 		clean(&user_cmd);
 	else {
-		usage(stdout, argv[0], "The command is not valid.", SHORT_USAGE);
+		usage(stderr, argv[0], "The command is not valid.", SHORT_USAGE);
 	}
 
 	return 0;
