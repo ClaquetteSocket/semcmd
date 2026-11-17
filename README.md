@@ -4,7 +4,7 @@
 [![C Standard](https://img.shields.io/badge/C-C11-blue.svg)](https://en.wikipedia.org/wiki/C11_(C_standard_revision))
 [![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](https://www.linux.org/)
 
-## 📖 Description
+## Description
 
 **`semcmd`** is a powerful yet simple command-line tool for **process synchronization** that brings the robustness of POSIX semaphores to shell scripting. Whether you're coordinating parallel tasks, protecting critical sections, or implementing synchronization barriers, `semcmd` provides an intuitive interface for managing locks directly from the command line.
 
@@ -15,13 +15,13 @@ Originally developed for the _"ISS - Initiation au Système et au Shell"_ course
 Perfect for scenarios ranging from **database migration scripts** and **log file rotation** to **parallel data processing** and **resource coordination**, `semcmd` transforms complex synchronization patterns into simple, readable shell commands.
 
 ### Key Features
-- 🔒 **Process synchronization** using named POSIX semaphores
-- 🛡️ **User isolation** with automatic namespace prefixing
-- 🎓 **Educational focus** for learning concurrent programming
-- 🔧 **Simple command-line interface** for shell script integration
-- ⚡ **Lightweight** with minimal dependencies
+- **Process synchronization** using named POSIX semaphores
+- **User isolation** with automatic namespace prefixing
+- **Educational focus** for learning concurrent programming
+- **Simple command-line interface** for shell script integration
+- **Lightweight** with minimal dependencies
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 - GCC compiler with C11 support
@@ -125,7 +125,7 @@ sudo cp completions/_semcmd /usr/share/zsh/site-functions/_semcmd
 Restart your shell or run `source ~/.bashrc` / `source ~/.zshrc` to activate completion.
 
 
-## 📚 Usage
+## Usage
 
 ### Syntax
 ```bash
@@ -150,12 +150,13 @@ semcmd [OPTIONS] <clean|list> | <create|lock|unlock|destroy|infos> <name_lock>
 |-------|------|-------------|
 | `-h` | `--help` | Display help and exit |
 | `-V` | `--version` | Display version number and exit |
-| `-f` | `--force` | Force destruction of locks in use ⚠️ |
+| `-f` | `--force` | Force destruction of locks in use (see warning below) |
 | `-l` | `--locked` | Create lock in LOCKED state (barrier setup) |
 
-> ⚠️ **Warning:** Using `--force` with locked semaphores may cause undefined behavior for processes holding the lock.
+> [!WARNING]
+> Using `--force` with locked semaphores may cause undefined behavior for processes holding the lock.
   
-## 💡 Examples
+## Examples
 
 ### Quick Start
 ```bash
@@ -246,7 +247,7 @@ ls /dev/shm/sem.semcmd.*
 # sem.semcmd.prod.username.my_lock
 # sem.semcmd.dev.username.my_lock
 ```
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -262,14 +263,14 @@ ls /dev/shm/sem.semcmd.*
 - `SEMCMD_NAMESPACE`: Sets custom namespace for lock isolation
 - Example: `export SEMCMD_NAMESPACE=myproject`
 
-## ⚠️ Limitations & Roadmap
+## Limitations & Roadmap
 
 ### Current Limitations
 
-- **🔒 Semaphore Values**: Limited to binary semaphores (0 or 1) for educational simplicity
-- **🔒 Lock Validation**: Prevents unlocking already unlocked semaphores
-- **🖥️ Platform Support**: POSIX semaphores only (Linux, macOS, etc.)
-- **🔍 Wait Queues**: Cannot display waiting process count due to POSIX limitations
+- **Semaphore Values**: Limited to binary semaphores (0 or 1) for educational simplicity
+- **Lock Validation**: Prevents unlocking already unlocked semaphores
+- **Platform Support**: POSIX semaphores only (Linux, macOS, etc.)
+- **Wait Queues**: Cannot display waiting process count due to POSIX limitations
 
 ### Future Enhancements
 
@@ -280,7 +281,7 @@ ls /dev/shm/sem.semcmd.*
 - [ ] **Action Logging**: Add support for logging semaphore actions (create, lock, unlock, destroy) to a file for audit and debugging purposes
 - [ ] **Wildcards Support**: Allow `destroy` and `infos` commands to accept wildcard patterns for batch operations (e.g., `semcmd destroy mylock*`)
 
-## 🚨 Error Codes
+## Error Codes
 
 When `semcmd` encounters an error, it returns a specific exit code to help diagnose the problem:
 
@@ -309,7 +310,7 @@ if ! semcmd create mylock; then
 fi
 ```
 
-## 🎓 Educational Context
+## Educational Context
 
 This tool was specifically designed for the **"ISS - Initiation au Système et au Shell"** course at **Sorbonne Université's Licence Informatique**. It provides students with hands-on experience in:
 
@@ -318,12 +319,12 @@ This tool was specifically designed for the **"ISS - Initiation au Système et a
 - **Shell scripting** with parallel processes
 - **System programming** with POSIX APIs
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 Thanks to [Sebastien Monnet](https://www.univ-smb.fr/listic/pages-en/sebastien-monnet-en/), the former head of the ISS course, who created a series of synchronization exercises based on lockfile (a synchronization tool integrated into procmail and based on the existence of a file). Thanks also to [Jonathan Lejeune](https://www.lip6.fr/Jonathan.Lejeune/), who initiated this porting work to named POSIX semaphores.
 
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU General Public License v3.0** (GPL-3.0).
 
@@ -338,9 +339,9 @@ the Free Software Foundation, either version 3 of the License, or
 
 For the complete license text, visit: https://www.gnu.org/licenses/gpl-3.0.en.html
 
-## 👨‍💻 Author
+## Author
 
 **Julien Sopena (@ClaquetteSocket)**  
-📧 [github@claquettesocket.fr](mailto:github@claquettesocket.fr)  
+[github@claquettesocket.fr](mailto:github@claquettesocket.fr)  
 
 ---
