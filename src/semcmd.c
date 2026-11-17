@@ -769,6 +769,7 @@ int main(int argc, char **argv)
 		clean(&user_cmd);
 	else {
 		usage(stderr, argv[0], "The command is not valid.", SHORT_USAGE);
+		return USAGE_ERR;
 	}
 
 	return 0;
