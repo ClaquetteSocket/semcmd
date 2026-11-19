@@ -323,12 +323,12 @@ This tool was specifically designed for the **"ISS - Initiation au Système et a
 
 ### Course Material
 
-The course is available online at [underthehood.systems/iss](https://underthehood.systems/iss/) ([French version](https://underthehood.systems/fr/iss/)). `semcmd` is used in the following sessions:
+The course is available online at [underthehood.systems/iss](https://underthehood.systems/iss/?from=github-semcmd) ([French version](https://underthehood.systems/fr/iss/?from=github-semcmd)). `semcmd` is used in the following sessions:
 
 | Session | Tutorial | Lab |
 |---------|----------|-----|
-| **10** - Concurrency, Inconsistency, and Synchronization | [EN](https://underthehood.systems/iss/tutorials/10-concurrency_synchronization.html) / [FR](https://underthehood.systems/fr/iss/tutorials/10-concurrency_synchronization.html) | [EN](https://underthehood.systems/iss/labs/10-concurrency_synchronization.html) / [FR](https://underthehood.systems/fr/iss/labs/10-concurrency_synchronization.html) |
-| **11** - The Other Synchronization: Barriers | [EN](https://underthehood.systems/iss/tutorials/11-barriers.html) / [FR](https://underthehood.systems/fr/iss/tutorials/11-barriers.html) | [EN](https://underthehood.systems/iss/labs/11-barriers.html) / [FR](https://underthehood.systems/fr/iss/labs/11-barriers.html) |
+| **10** - Concurrency, Inconsistency, and Synchronization | [EN](https://underthehood.systems/iss/tutorials/10-concurrency_synchronization.html?from=github-semcmd) / [FR](https://underthehood.systems/fr/iss/tutorials/10-concurrency_synchronization.html?from=github-semcmd) | [EN](https://underthehood.systems/iss/labs/10-concurrency_synchronization.html?from=github-semcmd) / [FR](https://underthehood.systems/fr/iss/labs/10-concurrency_synchronization.html?from=github-semcmd) |
+| **11** - The Other Synchronization: Barriers | [EN](https://underthehood.systems/iss/tutorials/11-barriers.html?from=github-semcmd) / [FR](https://underthehood.systems/fr/iss/tutorials/11-barriers.html?from=github-semcmd) | [EN](https://underthehood.systems/iss/labs/11-barriers.html?from=github-semcmd) / [FR](https://underthehood.systems/fr/iss/labs/11-barriers.html?from=github-semcmd) |
 
 ## Acknowledgements
 
