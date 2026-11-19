@@ -37,7 +37,7 @@ _semcmd_command() {
 
 _semcmd_locks() {
     local -a locks
-    locks=(${(f)"$(semcmd list 2>/dev/null | grep -oP '^\W*- \K\w+(?= )')"})
+    locks=(${(f)"$(semcmd list 2>/dev/null | grep -oP '^\W*- \K[\w-]+(?= )')"})
     _describe 'locks' locks
 }
 

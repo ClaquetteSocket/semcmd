@@ -10,7 +10,7 @@ _semcmd() {
     case "${prev}" in
         create|lock|unlock|destroy|infos)
             # Completion for existing lock names
-            local locks=$(semcmd list 2>/dev/null | grep -oP '^\W*- \K\w+(?= )')
+            local locks=$(semcmd list 2>/dev/null | grep -oP '^\W*- \K[\w-]+(?= )')
             COMPREPLY=($(compgen -W "${locks}" -- ${cur}))
             return 0
             ;;
