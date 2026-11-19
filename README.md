@@ -260,8 +260,9 @@ ls /dev/shm/sem.semcmd.*
 
 ### Environment Variables
 
-- `SEMCMD_NAMESPACE`: Sets custom namespace for lock isolation
+- `SEMCMD_NAMESPACE`: Sets custom namespace for lock isolation (an empty value means no namespace)
 - Example: `export SEMCMD_NAMESPACE=myproject`
+- Like lock names, namespaces can only contain letters, digits, hyphens, and underscores
 
 ## Limitations & Roadmap
 

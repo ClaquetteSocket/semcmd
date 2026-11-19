@@ -87,6 +87,10 @@ static const char *VERSION = "1.00";
 #endif
 static const char *global_namespace = GLOBAL_NAMESPACE;
 
+/*! Maximum length of a semaphore name: glibc prepends "sem." to build the file
+ * name in SHM_DIR, which must not exceed NAME_MAX. */
+#define SEM_NAME_MAX (NAME_MAX - 4)
+
 /** @} */ // end of grp_semdir
 
 /*******************************************************************************
@@ -192,6 +196,38 @@ static void usage(FILE *file_ptr, const char *path, const char *msg, int long_ve
 		fprintf(file_ptr,
 			"       A complete description of the command is available with the help option: '%s -h/--help'\n",
 			basename);
+	}
+}
+
+/**
+ * @ingroup grp_parsing
+ * @brief Check that a lock name or a namespace is valid.
+ *
+ * Lock names and namespaces are dot-separated components of the semaphore file
+ * name. To keep these names unambiguous and free of glob metacharacters, they
+ * must not be empty and can only contain letters, digits, hyphens, and
+ * underscores. On error, a message is displayed and the program exits.
+ *
+ * @param name The name to check.
+ * @param what A description of the name for error messages.
+ */
+static void check_name(const char *name, const char *what)
+{
+	if (*name == '\0') {
+		fprintf(stderr, "Error: the %s must not be empty.\n", what);
+		exit(USAGE_ERR);
+	}
+
+	for (const char *p = name; *p; p++) {
+		char c = *p;
+		if (!((c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') ||
+			c == '-' || c == '_')) {
+			fprintf(stderr, "Error: Invalid character '%c' in %s '%s'.\n", c, what, name);
+			fprintf(stderr, "A %s can only contain letters, digits, hyphens, and underscores.\n", what);
+			exit(USAGE_ERR);
+		}
 	}
 }
 
@@ -304,9 +340,17 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	}
 	char *login = passwd_entry->pw_name;
 	
-	if (getenv("SEMCMD_NAMESPACE") != NULL) {
-		char *namespace = getenv("SEMCMD_NAMESPACE");
+	char *namespace = getenv("SEMCMD_NAMESPACE");
+	if (namespace != NULL && *namespace != '\0') {
+		check_name(namespace, "namespace (SEMCMD_NAMESPACE)");
 		int size = snprintf(NULL, 0, "%s.%s.%s", global_namespace, namespace, login);
+		// The prefix must leave room for a dot and a one-character lock name
+		if (size + 2 > SEM_NAME_MAX) {
+			fprintf(stderr,
+				"Error: the namespace (SEMCMD_NAMESPACE) is too long. It must not exceed %d characters.\n",
+				SEM_NAME_MAX - 2 - (size - (int)strlen(namespace)));
+			exit(USAGE_ERR);
+		}
 		cmd->prefix = (char *)malloc(size + 1);
 		if (!cmd->prefix) {
 			fprintf(stderr, "Memory allocation failed for prefix\n");
@@ -324,24 +368,13 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	}
 
 	if (cmd->name != NULL) {
-
-		for (const char *p = cmd->name; *p; p++) {
-			char c = *p;
-			if (!((c >= 'a' && c <= 'z') ||
-				(c >= 'A' && c <= 'Z') ||
-				(c >= '0' && c <= '9') ||
-				c == '-' || c == '_')) {
-				fprintf(stderr, "Error: Invalid character '%c' in lock name '%s'.\n", c, cmd->name);
-				fprintf(stderr, "Lock names can only contain letters, digits, hyphens, and underscores.\n");
-				exit(USAGE_ERR);
-			}
-		}
+		check_name(cmd->name, "lock name");
 
 		int size = snprintf(NULL, 0, "%s.%s", cmd->prefix, cmd->name);
-		if (size > NAME_MAX) {
+		if (size > SEM_NAME_MAX) {
 			fprintf(stderr,
-				"Error: the lock name is too long. With the prefix, it must not exceed %d characters.\n",
-				NAME_MAX);
+				"Error: the lock name is too long. It must not exceed %d characters.\n",
+				SEM_NAME_MAX - 1 - (int)strlen(cmd->prefix));
 			exit(USAGE_ERR);
 		}
 		cmd->shm_file = (char *)malloc(size + 1);
