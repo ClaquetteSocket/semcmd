@@ -243,10 +243,12 @@ SEMCMD_NAMESPACE=dev ./my_script.sh &
 
 # Check isolation
 ls /dev/shm/sem.semcmd.*
-# Output:
-# sem.semcmd.prod.username.my_lock
-# sem.semcmd.dev.username.my_lock
+# Output (for uid 1000):
+# sem.semcmd.1000.prod.my_lock
+# sem.semcmd.1000.dev.my_lock
 ```
+
+Each lock is stored in `/dev/shm` as `sem.semcmd.<uid>.<namespace>.<lock_name>`, where `<uid>` is your user ID (`id -u`) and `<namespace>` is `default` when `SEMCMD_NAMESPACE` is unset or empty. `semcmd --help` shows the exact file names for your account.
 ## Troubleshooting
 
 ### Common Issues
@@ -260,7 +262,7 @@ ls /dev/shm/sem.semcmd.*
 
 ### Environment Variables
 
-- `SEMCMD_NAMESPACE`: Sets custom namespace for lock isolation (an empty value means no namespace)
+- `SEMCMD_NAMESPACE`: Sets custom namespace for lock isolation (`default` if unset or empty)
 - Example: `export SEMCMD_NAMESPACE=myproject`
 - Like lock names, namespaces can only contain letters, digits, hyphens, and underscores
 
@@ -301,7 +303,6 @@ When `semcmd` encounters an error, it returns a specific exit code to help diagn
 | **10** | `SEARCH_ERR` | Failed to search semaphores | `/dev/shm` access issues |
 | **11** | `UNDEF_ERR` | Undefined error | Reserved for future use |
 | **12** | `ALLOC_ERR` | Memory allocation failed | Out of memory |
-| **13** | `LOGIN_ERR` | Failed to get user login | User database error |
 
 ### Using Exit Codes in Scripts
 ```bash

@@ -50,7 +50,6 @@
 #define SEARCH_ERR 10
 #define UNDEF_ERR 11
 #define ALLOC_ERR 12
-#define LOGIN_ERR 13
 
 #define ALIGNED __attribute__((aligned(64)))
 
@@ -70,7 +69,11 @@ static const char *VERSION = "1.00";
  *
  * To avoid conflicts with other programs or other users, we add a prefix to the
  * semaphore file name. Thus, the semaphore file name is of the form
- * `sem.PREFIX.username.lockname`.
+ * `sem.GLOBAL_NAMESPACE.uid.namespace.lockname`.
+ *
+ * The namespace is always present ("default" if none is given), and neither the
+ * uid, the namespace, nor the lock name can contain a dot. Hence each file name
+ * corresponds to exactly one (uid, namespace, lock name) triple.
  *
  * @{
  ******************************************************************************/
@@ -90,6 +93,22 @@ static const char *global_namespace = GLOBAL_NAMESPACE;
 /*! Maximum length of a semaphore name: glibc prepends "sem." to build the file
  * name in SHM_DIR, which must not exceed NAME_MAX. */
 #define SEM_NAME_MAX (NAME_MAX - 4)
+
+/*! Namespace used when SEMCMD_NAMESPACE is unset or empty. */
+#define DEFAULT_NAMESPACE "default"
+
+/**
+ * @ingroup grp_semdir
+ * @brief Get the namespace of the locks.
+ *
+ * @return The value of SEMCMD_NAMESPACE, or DEFAULT_NAMESPACE if it is unset or
+ * empty.
+ */
+static const char *get_namespace(void)
+{
+	const char *namespace = getenv("SEMCMD_NAMESPACE");
+	return (namespace && *namespace) ? namespace : DEFAULT_NAMESPACE;
+}
 
 /** @} */ // end of grp_semdir
 
@@ -192,6 +211,17 @@ static void usage(FILE *file_ptr, const char *path, const char *msg, int long_ve
 			"        Note: behavior is undefined for the process holding the lock.\n");
 		fprintf(file_ptr,
 			"  -l, --locked\tCreates the lock in the LOCK state to set up a barrier.\n");
+
+		unsigned long uid = (unsigned long)getuid();
+		struct passwd *passwd_entry = getpwuid(getuid());
+		fprintf(file_ptr, "\nEach lock is a POSIX named semaphore stored as:\n");
+		fprintf(file_ptr, "  %s/sem.%s.<uid>.<namespace>.<lock_name>\n", SHM_DIR, global_namespace);
+		fprintf(file_ptr, "where <uid> is your user ID (%lu", uid);
+		if (passwd_entry)
+			fprintf(file_ptr, " for '%s'", passwd_entry->pw_name);
+		fprintf(file_ptr, ", see cmd 'id'), e.g.:\n");
+		fprintf(file_ptr, "  %s/sem.%s.%lu.%s.mylock\n", SHM_DIR, global_namespace, uid,
+			get_namespace());
 	} else {
 		fprintf(file_ptr,
 			"       A complete description of the command is available with the help option: '%s -h/--help'\n",
@@ -333,44 +363,29 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	cmd->cmd = argv[optind];
 	cmd->name = argv[optind + 1];
 
-	struct passwd *passwd_entry = getpwuid(getuid());
-	if (passwd_entry == NULL) {
-		perror("getpwuid");
-		exit(LOGIN_ERR);
+	unsigned long uid = (unsigned long)getuid();
+	const char *namespace = get_namespace();
+	check_name(namespace, "namespace (SEMCMD_NAMESPACE)");
+
+	int size = snprintf(NULL, 0, "%s.%lu.%s", global_namespace, uid, namespace);
+	// The prefix must leave room for a dot and a one-character lock name
+	if (size + 2 > SEM_NAME_MAX) {
+		fprintf(stderr,
+			"Error: the namespace (SEMCMD_NAMESPACE) is too long. It must not exceed %d characters.\n",
+			SEM_NAME_MAX - 2 - (size - (int)strlen(namespace)));
+		exit(USAGE_ERR);
 	}
-	char *login = passwd_entry->pw_name;
-	
-	char *namespace = getenv("SEMCMD_NAMESPACE");
-	if (namespace != NULL && *namespace != '\0') {
-		check_name(namespace, "namespace (SEMCMD_NAMESPACE)");
-		int size = snprintf(NULL, 0, "%s.%s.%s", global_namespace, namespace, login);
-		// The prefix must leave room for a dot and a one-character lock name
-		if (size + 2 > SEM_NAME_MAX) {
-			fprintf(stderr,
-				"Error: the namespace (SEMCMD_NAMESPACE) is too long. It must not exceed %d characters.\n",
-				SEM_NAME_MAX - 2 - (size - (int)strlen(namespace)));
-			exit(USAGE_ERR);
-		}
-		cmd->prefix = (char *)malloc(size + 1);
-		if (!cmd->prefix) {
-			fprintf(stderr, "Memory allocation failed for prefix\n");
-			exit(ALLOC_ERR);
-		}
-		snprintf((char *)cmd->prefix, size + 1, "%s.%s.%s", global_namespace, namespace, login);
-	} else {
-		int size = snprintf(NULL, 0, "%s.%s", global_namespace, login);
-		cmd->prefix = (char *)malloc(size + 1);
-		if (!cmd->prefix) {
-			fprintf(stderr, "Memory allocation failed for prefix\n");
-			exit(ALLOC_ERR);
-		}
-		snprintf((char *)cmd->prefix, size + 1, "%s.%s", global_namespace, login);
+	cmd->prefix = (char *)malloc(size + 1);
+	if (!cmd->prefix) {
+		fprintf(stderr, "Memory allocation failed for prefix\n");
+		exit(ALLOC_ERR);
 	}
+	snprintf(cmd->prefix, size + 1, "%s.%lu.%s", global_namespace, uid, namespace);
 
 	if (cmd->name != NULL) {
 		check_name(cmd->name, "lock name");
 
-		int size = snprintf(NULL, 0, "%s.%s", cmd->prefix, cmd->name);
+		size = snprintf(NULL, 0, "%s.%s", cmd->prefix, cmd->name);
 		if (size > SEM_NAME_MAX) {
 			fprintf(stderr,
 				"Error: the lock name is too long. It must not exceed %d characters.\n",
