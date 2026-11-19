@@ -10,7 +10,7 @@
 
 Built on **named POSIX semaphores**, `semcmd` enables developers to create, acquire, release, and manage locks with simple commands like `create`, `lock`, `unlock`, and `destroy`. Its **automatic namespace isolation** ensures that different users and projects never interfere with each other, making it safe for multi-user environments.
 
-Originally developed for the _"ISS - Initiation au Système et au Shell"_ course at _Sorbonne Université_, `semcmd` serves as both an **educational tool** for teaching concurrent programming concepts and a **production-ready utility** for system administrators and developers who need reliable process synchronization in their scripts and applications.
+Originally developed for the [_"Introduction to Systems and Shells"_ (ISS)](#course-material) course at _Sorbonne Université_, `semcmd` serves as both an **educational tool** for teaching concurrent programming concepts and a **production-ready utility** for system administrators and developers who need reliable process synchronization in their scripts and applications.
 
 Perfect for scenarios ranging from **database migration scripts** and **log file rotation** to **parallel data processing** and **resource coordination**, `semcmd` transforms complex synchronization patterns into simple, readable shell commands.
 
@@ -320,6 +320,15 @@ This tool was specifically designed for the **"ISS - Initiation au Système et a
 - **Concurrent programming** patterns  
 - **Shell scripting** with parallel processes
 - **System programming** with POSIX APIs
+
+### Course Material
+
+The course is available online at [underthehood.systems/iss](https://underthehood.systems/iss/) ([French version](https://underthehood.systems/fr/iss/)). `semcmd` is used in the following sessions:
+
+| Session | Tutorial | Lab |
+|---------|----------|-----|
+| **10** - Concurrency, Inconsistency, and Synchronization | [EN](https://underthehood.systems/iss/tutorials/10-concurrency_synchronization.html) / [FR](https://underthehood.systems/fr/iss/tutorials/10-concurrency_synchronization.html) | [EN](https://underthehood.systems/iss/labs/10-concurrency_synchronization.html) / [FR](https://underthehood.systems/fr/iss/labs/10-concurrency_synchronization.html) |
+| **11** - The Other Synchronization: Barriers | [EN](https://underthehood.systems/iss/tutorials/11-barriers.html) / [FR](https://underthehood.systems/fr/iss/tutorials/11-barriers.html) | [EN](https://underthehood.systems/iss/labs/11-barriers.html) / [FR](https://underthehood.systems/fr/iss/labs/11-barriers.html) |
 
 ## Acknowledgements
 
