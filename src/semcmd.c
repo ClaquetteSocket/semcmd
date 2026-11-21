@@ -303,7 +303,7 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 				     { 0 } };
 
 	while (1) {
-		int opt = getopt_long(argc, argv, "hVflp:", longopts, 0);
+		int opt = getopt_long(argc, argv, "hVfl", longopts, 0);
 
 		if (opt == -1) {
 			/* a return value of -1 indicates that there are no more
