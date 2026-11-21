@@ -51,8 +51,6 @@
 #define UNDEF_ERR 11
 #define ALLOC_ERR 12
 
-#define ALIGNED __attribute__((aligned(64)))
-
 /**
  * @brief The version number of the program.
  */
@@ -174,7 +172,7 @@ struct sync_cmd {
 	char *shm_file; // name of the shared memory file
 	char *prefix; // prefix for the lock name
 	char *name; // name of the lock
-} ALIGNED;
+};
 
 #define SHORT_USAGE 0
 #define LONG_USAGE 1
