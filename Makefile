@@ -3,18 +3,20 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -pedantic -D_REENTRANT
 PREFIX ?= /usr/local
+# zsh does not expand '~' in 'PREFIX=~/.local', so expand it here
+override PREFIX := $(patsubst ~/%,$(HOME)/%,$(PREFIX))
 BINDIR = $(PREFIX)/bin
 
 BASH_COMPLETION_DIR = $(PREFIX)/share/bash-completion/completions
 
-ifeq ($(PREFIX),/usr/local)
+# System-wide prefix: standard zsh directory. Prefix in $HOME: zinit
+# completions if available, ~/.zfunc otherwise.
+ifeq ($(filter $(HOME)/%,$(PREFIX)),)
   ZSH_COMPLETION_DIR = $(PREFIX)/share/zsh/site-functions
+else ifneq ($(wildcard $(PREFIX)/share/zinit/completions),)
+  ZSH_COMPLETION_DIR = $(PREFIX)/share/zinit/completions
 else
-  ifneq ($(wildcard $(PREFIX)/share/zinit/completions),)
-    ZSH_COMPLETION_DIR = $(PREFIX)/share/zinit/completions
-  else
-    ZSH_COMPLETION_DIR = $(HOME)/.zfunc
-  endif
+  ZSH_COMPLETION_DIR = $(HOME)/.zfunc
 endif
 
 all : semcmd
