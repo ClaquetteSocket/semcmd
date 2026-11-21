@@ -254,7 +254,7 @@ static void check_name(const char *name, const char *what)
 			(c >= 'A' && c <= 'Z') ||
 			(c >= '0' && c <= '9') ||
 			c == '-' || c == '_')) {
-			fprintf(stderr, "Error: Invalid character '%c' in %s '%s'.\n", c, what, name);
+			fprintf(stderr, "Error: invalid character '%c' in %s '%s'.\n", c, what, name);
 			fprintf(stderr, "A %s can only contain letters, digits, hyphens, and underscores.\n", what);
 			exit(USAGE_ERR);
 		}
@@ -377,7 +377,7 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	}
 	cmd->prefix = (char *)malloc(size + 1);
 	if (!cmd->prefix) {
-		fprintf(stderr, "Memory allocation failed for prefix\n");
+		fprintf(stderr, "Error: out of memory.\n");
 		exit(ALLOC_ERR);
 	}
 	snprintf(cmd->prefix, size + 1, "%s.%lu.%s", global_namespace, uid, namespace);
@@ -394,7 +394,7 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 		}
 		cmd->shm_file = (char *)malloc(size + 1);
 		if (!cmd->shm_file) {
-			fprintf(stderr, "Memory allocation failed for shm_file\n");
+			fprintf(stderr, "Error: out of memory.\n");
 			exit(ALLOC_ERR);
 		}
 		snprintf(cmd->shm_file, size + 1, "%s.%s", cmd->prefix, cmd->name);
@@ -431,14 +431,13 @@ static sem_t *init_sync(const struct sync_cmd *cmd)
 	if ((my_sem = sem_open(cmd->shm_file, O_RDWR | O_CREAT | O_EXCL, 0600, cmd->init_value)) ==
 	    NULL) {
 		if (errno == EEXIST) {
-			fprintf(stderr, "Error to create lock '%s' because it already exists.\n",
+			fprintf(stderr, "Error: cannot create lock '%s': it already exists.\n",
 				cmd->name);
-			fprintf(stderr,
-				"Before recreating it, you need to delete it using the command: '%s destroy %s'\n",
+			fprintf(stderr, "To recreate it, first destroy it with: '%s destroy %s'\n",
 				cmd->bin, cmd->name);
 		} else {
-			fprintf(stderr, "Error in %s %s: ", cmd->cmd, cmd->name);
-			perror("sem_open, ");
+			fprintf(stderr, "Error: cannot create lock '%s': %s.\n", cmd->name,
+				strerror(errno));
 		}
 		exit(CREATE_ERR);
 	}
@@ -461,14 +460,12 @@ static sem_t *open_sync(const struct sync_cmd *cmd)
 	sem_t *my_sem = NULL;
 	if ((my_sem = sem_open(cmd->shm_file, O_RDWR, 0, 0)) == NULL) {
 		if (errno == ENOENT) {
-			fprintf(stderr, "Error to %s lock '%s' because it does not exist.\n",
-				cmd->cmd, cmd->name);
-			fprintf(stderr,
-				"Before using it, you need to create it using the command: '%s create %s'\n",
+			fprintf(stderr, "Error: lock '%s' does not exist.\n", cmd->name);
+			fprintf(stderr, "To use it, first create it with: '%s create %s'\n",
 				cmd->bin, cmd->name);
 		} else {
-			fprintf(stderr, "Error in %s %s: ", cmd->cmd, cmd->name);
-			perror("sem_open, ");
+			fprintf(stderr, "Error: cannot open lock '%s': %s.\n", cmd->name,
+				strerror(errno));
 		}
 		exit(OPEN_ERR);
 	}
@@ -489,8 +486,7 @@ static sem_t *open_sync(const struct sync_cmd *cmd)
 static void close_sync(sem_t *my_sem, const struct sync_cmd *cmd)
 {
 	if (sem_close(my_sem) != 0) {
-		fprintf(stderr, "Error in %s %s: ", cmd->cmd, cmd->name);
-		perror("sem_close, ");
+		fprintf(stderr, "Error: cannot close lock '%s': %s.\n", cmd->name, strerror(errno));
 		exit(CLOSE_ERR);
 	}
 }
@@ -513,12 +509,12 @@ static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd)
 {
 	int current_val;
 	if (sem_getvalue(my_sem, &current_val) != 0) {
-		fprintf(stderr, "Error reading information from %s: ", cmd->name);
-		perror(NULL);
+		fprintf(stderr, "Error: cannot read the value of lock '%s': %s.\n", cmd->name,
+			strerror(errno));
 		exit(READ_ERR);
 	} else if (current_val > 1) {
 		fprintf(stderr,
-			"Error in lock value %s, which is equal to %d while it should not be greater than 1\n",
+			"Error: lock '%s' is corrupted: its value is %d, while it should be 0 or 1.\n",
 			cmd->name, current_val);
 		exit(BADVAL_ERR);
 	}
@@ -551,14 +547,14 @@ static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_
 	int size = snprintf(NULL, 0, "%s/sem.%s.*", SHM_DIR, cmd->prefix);
 	char *pattern = (char *)malloc(size + 1);
 	if (!pattern) {
-		fprintf(stderr, "Memory allocation failed for pattern\n");
+		fprintf(stderr, "Error: out of memory.\n");
 		exit(ALLOC_ERR);
 	}
 	snprintf(pattern, size + 1, "%s/sem.%s.*", SHM_DIR, cmd->prefix);
 
 	int glob_result = glob(pattern, GLOB_ERR, NULL, &gstruct);
 	if (glob_result != 0 && glob_result != GLOB_NOMATCH) {
-		fprintf(stderr, "Error accessing the search in '/dev/shm'\n");
+		fprintf(stderr, "Error: cannot search for locks in '%s'.\n", SHM_DIR);
 		exit(SEARCH_ERR);
 	}
 
@@ -625,25 +621,24 @@ static int destroy(const struct sync_cmd *cmd)
 	close_sync(my_sem, cmd);
 
 	if (current_value < 1 && !cmd->force_flag) {
-		fprintf(stderr, "Unable to delete the lock '%s' as it is currently in use.\n",
+		fprintf(stderr, "Error: cannot destroy lock '%s': it is currently locked.\n",
 			cmd->name);
 		fprintf(stderr, "To resolve the issue, you can:\n");
-		fprintf(stderr, "\t- release the lock with the command: '%s unlock %s'\n", cmd->bin,
-			cmd->name);
-		fprintf(stderr,
-			"\t- use destroy with the --force/-f option: '%s destroy %s --force'\n",
+		fprintf(stderr, "\t- release the lock with: '%s unlock %s'\n", cmd->bin, cmd->name);
+		fprintf(stderr, "\t- force its destruction with: '%s destroy --force %s'\n",
 			cmd->bin, cmd->name);
-		fprintf(stderr, "\t- use clean with the --force/-f option: '%s clean --force'\n",
+		fprintf(stderr, "\t- force the destruction of all your locks with: '%s clean --force'\n",
 			cmd->bin);
 		return 1;
 	}
 
 	if (sem_unlink(cmd->shm_file) != 0) {
-		fprintf(stderr, "Error deleting lock '%s'", cmd->name);
 		if (errno == ENOENT)
-			fprintf(stderr, "because it does not exist.\n");
+			fprintf(stderr, "Error: cannot destroy lock '%s': it does not exist.\n",
+				cmd->name);
 		else
-			perror(": sem_unlink, ");
+			fprintf(stderr, "Error: cannot destroy lock '%s': %s.\n", cmd->name,
+				strerror(errno));
 		exit(UNLINK_ERR);
 	}
 	return 0;
@@ -664,8 +659,7 @@ static void lock(const struct sync_cmd *cmd)
 	sem_t *my_sem = open_sync(cmd);
 
 	if (sem_wait(my_sem) != 0) {
-		fprintf(stderr, "Error to lock %s: ", cmd->name);
-		perror(NULL);
+		fprintf(stderr, "Error: cannot acquire lock '%s': %s.\n", cmd->name, strerror(errno));
 		exit(LOCK_ERR);
 	}
 
@@ -687,13 +681,12 @@ static void unlock(const struct sync_cmd *cmd)
 	sem_t *my_sem = open_sync(cmd);
 
 	if (read_sync(my_sem, cmd) > 0) {
-		fprintf(stderr, "Error to unlock %s because it is not locked.\n", cmd->name);
+		fprintf(stderr, "Error: cannot release lock '%s': it is not locked.\n", cmd->name);
 		exit(UNLOCK_ERR);
 	}
 
 	if (sem_post(my_sem) != 0) {
-		fprintf(stderr, "Error to unlock %s: ", cmd->name);
-		perror(NULL);
+		fprintf(stderr, "Error: cannot release lock '%s': %s.\n", cmd->name, strerror(errno));
 		exit(UNLOCK_ERR);
 	}
 

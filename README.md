@@ -256,9 +256,9 @@ Each lock is stored in `/dev/shm` as `sem.semcmd.<uid>.<namespace>.<lock_name>`,
 | Problem | Cause | Solution |
 |---------|-------|----------|
 | `Permission denied` | No access to `/dev/shm` | Check file system permissions |
-| `Lock already exists` | Semaphore wasn't cleaned up | Use `semcmd destroy <name>` or `semcmd clean` |
-| `No such lock` | Lock name typo or doesn't exist | Verify with `semcmd list` |
-| `Memory allocation failed` | System out of memory | Free system resources |
+| `cannot create lock '<name>': it already exists` | Semaphore wasn't cleaned up | Use `semcmd destroy <name>` or `semcmd clean` |
+| `lock '<name>' does not exist` | Lock name typo or doesn't exist | Verify with `semcmd list` |
+| `out of memory` | System out of memory | Free system resources |
 
 ### Environment Variables
 
