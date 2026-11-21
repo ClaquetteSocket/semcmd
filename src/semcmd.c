@@ -99,15 +99,26 @@ static const char *global_namespace = GLOBAL_NAMESPACE;
 
 /**
  * @ingroup grp_semdir
+ * @brief Get the namespace requested by the user.
+ *
+ * @return The value of SEMCMD_NAMESPACE, or NULL if it is unset or empty.
+ */
+static const char *user_namespace(void)
+{
+	const char *namespace = getenv("SEMCMD_NAMESPACE");
+	return (namespace && *namespace) ? namespace : NULL;
+}
+
+/**
+ * @ingroup grp_semdir
  * @brief Get the namespace of the locks.
  *
- * @return The value of SEMCMD_NAMESPACE, or DEFAULT_NAMESPACE if it is unset or
- * empty.
+ * @return The namespace requested by the user, or DEFAULT_NAMESPACE if none.
  */
 static const char *get_namespace(void)
 {
-	const char *namespace = getenv("SEMCMD_NAMESPACE");
-	return (namespace && *namespace) ? namespace : DEFAULT_NAMESPACE;
+	const char *namespace = user_namespace();
+	return namespace ? namespace : DEFAULT_NAMESPACE;
 }
 
 /** @} */ // end of grp_semdir
@@ -201,8 +212,9 @@ static void usage(FILE *file_ptr, const char *path, const char *msg, int long_ve
 			"- 'unlock' releases the lock with the specified name;\n"
 			"- 'destroy' deletes the lock with the specified name (see --force option);\n"
 			"- 'infos' displays the status of the lock with the specified name;\n"
-			"- 'list' displays the status of all locks you created;\n"
-			"- 'clean' destroys all locks you created (see --force option);\n");
+			"- 'list' displays the status of all your locks;\n"
+			"- 'clean' destroys all your locks (see --force option);\n"
+			"If SEMCMD_NAMESPACE is set, commands only apply to the locks of this namespace.\n");
 		fprintf(file_ptr, "\nAvailable options:\n");
 		fprintf(file_ptr, "  -h, --help\tDisplay this help and exit.\n");
 		fprintf(file_ptr, "  -V, --version\tDisplay the version number and exit.\n");
@@ -727,6 +739,23 @@ static void infos(const struct sync_cmd *cmd, const char *indent)
 	close_sync(my_sem, cmd);
 }
 
+/**
+ * @ingroup grp_cmd
+ * @brief Display where the locks of `list` and `clean` are searched.
+ *
+ * The namespace is only mentioned when SEMCMD_NAMESPACE is set, so that
+ * beginners who do not use namespaces never see it.
+ */
+static void print_scope(void)
+{
+	const char *namespace = user_namespace();
+
+	if (namespace)
+		fprintf(stdout, " in namespace '%s'", namespace);
+	else
+		fprintf(stdout, " in the system");
+}
+
 static int clean_action(const struct sync_cmd *cmd)
 {
 	if (destroy(cmd))
@@ -736,7 +765,9 @@ static int clean_action(const struct sync_cmd *cmd)
 }
 static void clean_nothing()
 {
-	fprintf(stdout, "You currently have no locks to delete in the system.\n");
+	fprintf(stdout, "You currently have no locks to delete");
+	print_scope();
+	fprintf(stdout, ".\n");
 }
 
 /**
@@ -758,7 +789,9 @@ static int clean(struct sync_cmd *cmd)
 
 static void list_first(int num)
 {
-	fprintf(stdout, "In this system, you have created %d lock%s:\n", num, num >= 2 ? "s" : "");
+	fprintf(stdout, "You have created %d lock%s", num, num >= 2 ? "s" : "");
+	print_scope();
+	fprintf(stdout, ":\n");
 }
 static int list_action(const struct sync_cmd *cmd)
 {
@@ -767,7 +800,9 @@ static int list_action(const struct sync_cmd *cmd)
 }
 static void list_nothing()
 {
-	fprintf(stdout, "Currently, you have no locks in the system.\n");
+	fprintf(stdout, "Currently, you have no locks");
+	print_scope();
+	fprintf(stdout, ".\n");
 }
 
 /**
