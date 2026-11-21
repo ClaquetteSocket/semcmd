@@ -179,13 +179,26 @@ struct sync_cmd {
 
 /**
  * @ingroup grp_parsing
+ * @brief Get the name of the program from its path.
+ *
+ * @param path The path of the program (argv[0]).
+ * @return The part of the path after the last '/'.
+ */
+static const char *prog_name(const char *path)
+{
+	const char *slash = strrchr(path, '/');
+	return slash ? slash + 1 : path;
+}
+
+/**
+ * @ingroup grp_parsing
  * @brief Display the usage of the program.
  *
  * This function displays the usage of the program. It takes a file pointer, the
  * path of the program, an optional message, and a flag indicating whether to
  * display the long version of the usage.
  *
- * @param fp The file pointer to which the usage is written.
+ * @param file_ptr The file pointer to which the usage is written.
  * @param path The path of the program.
  * @param msg An optional message to display.
  * @param long_version A flag indicating whether to display the long version of
@@ -193,8 +206,7 @@ struct sync_cmd {
  */
 static void usage(FILE *file_ptr, const char *path, const char *msg, int long_version)
 {
-	const char *basename = strrchr(path, '/');
-	basename = basename ? basename + 1 : path;
+	const char *basename = prog_name(path);
 
 	if (msg)
 		fprintf(file_ptr, "%s\n", msg);
@@ -336,7 +348,7 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	}
 
 	if (version_flag) {
-		fprintf(stdout, "%s - version %s\n", argv[0], VERSION);
+		fprintf(stdout, "%s - version %s\n", prog_name(argv[0]), VERSION);
 		exit(0);
 	}
 
@@ -439,7 +451,7 @@ static sem_t *init_sync(const struct sync_cmd *cmd)
 {
 	sem_t *my_sem = NULL;
 	if ((my_sem = sem_open(cmd->shm_file, O_RDWR | O_CREAT | O_EXCL, 0600, cmd->init_value)) ==
-	    NULL) {
+	    SEM_FAILED) {
 		if (errno == EEXIST) {
 			fprintf(stderr, "Error: cannot create lock '%s': it already exists.\n",
 				cmd->name);
@@ -468,7 +480,7 @@ static sem_t *init_sync(const struct sync_cmd *cmd)
 static sem_t *open_sync(const struct sync_cmd *cmd)
 {
 	sem_t *my_sem = NULL;
-	if ((my_sem = sem_open(cmd->shm_file, O_RDWR, 0, 0)) == NULL) {
+	if ((my_sem = sem_open(cmd->shm_file, O_RDWR, 0, 0)) == SEM_FAILED) {
 		if (errno == ENOENT) {
 			fprintf(stderr, "Error: lock '%s' does not exist.\n", cmd->name);
 			fprintf(stderr, "To use it, first create it with: '%s create %s'\n",
@@ -549,7 +561,7 @@ static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd)
  * @return The number of locks for which the action failed.
  */
 static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_cmd *),
-			void (*nothing)(), struct sync_cmd *cmd)
+			void (*nothing)(void), struct sync_cmd *cmd)
 {
 	int failures = 0;
 	glob_t gstruct;
@@ -711,9 +723,9 @@ static void unlock(const struct sync_cmd *cmd)
  * in the `sync_cmd` structure. It displays whether the lock is locked or
  * unlocked.
  *
- * Unfortunately, due to the lack of a standard implementation and the choice of
- * Linux implementation, this function is not able to display the number of
- * processes waiting for the lock. We are working to solve this issue.
+ * This function cannot display the number of processes waiting for the lock:
+ * when the semaphore is locked, POSIX allows sem_getvalue() to return either 0
+ * or minus the number of waiting processes, and Linux always returns 0.
  *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
  * @param indent An optional string to indent the output.
@@ -723,16 +735,8 @@ static void infos(const struct sync_cmd *cmd, const char *indent)
 	sem_t *my_sem = open_sync(cmd);
 	int value = read_sync(my_sem, cmd);
 
-	fprintf(stdout, "%s%s lock is %s", indent ? indent : "", cmd->name,
+	fprintf(stdout, "%s%s lock is %s.\n", indent ? indent : "", cmd->name,
 		value > 0 ? "UNLOCK" : "LOCK");
-	// :-( Linux implements the simple version of the standard: returns 0
-	// even if processes are waiting if (value == 0)
-	//	fprintf(stdout, " and no process is waiting for it.\n");
-	// else if (value < 0)
-	//	fprintf(stdout, " and is being waited for by %d processes.\n",
-	// value * -1);
-	// else
-	fprintf(stdout, ".\n");
 
 	close_sync(my_sem, cmd);
 }
@@ -754,6 +758,13 @@ static void print_scope(void)
 		fprintf(stdout, " in the system");
 }
 
+/**
+ * @ingroup grp_cmd
+ * @brief Destroy one lock for `clean` (callback of foreach_sync).
+ *
+ * @param cmd The sync_cmd structure containing the name of the semaphore.
+ * @return 0 if the lock is destroyed, 1 otherwise.
+ */
 static int clean_action(const struct sync_cmd *cmd)
 {
 	if (destroy(cmd))
@@ -761,7 +772,13 @@ static int clean_action(const struct sync_cmd *cmd)
 	fprintf(stdout, "Lock %s has been deleted.\n", cmd->name);
 	return 0;
 }
-static void clean_nothing()
+
+/**
+ * @ingroup grp_cmd
+ * @brief Display the `clean` message when there is no lock (callback of
+ * foreach_sync).
+ */
+static void clean_nothing(void)
 {
 	fprintf(stdout, "You currently have no locks to delete");
 	print_scope();
@@ -785,18 +802,38 @@ static int clean(struct sync_cmd *cmd)
 	return foreach_sync(NULL, clean_action, clean_nothing, cmd);
 }
 
+/**
+ * @ingroup grp_cmd
+ * @brief Display the `list` header (callback of foreach_sync).
+ *
+ * @param num The number of locks found.
+ */
 static void list_first(int num)
 {
 	fprintf(stdout, "You have created %d lock%s", num, num >= 2 ? "s" : "");
 	print_scope();
 	fprintf(stdout, ":\n");
 }
+
+/**
+ * @ingroup grp_cmd
+ * @brief Display the status of one lock for `list` (callback of foreach_sync).
+ *
+ * @param cmd The sync_cmd structure containing the name of the semaphore.
+ * @return Always 0.
+ */
 static int list_action(const struct sync_cmd *cmd)
 {
 	infos(cmd, "  - ");
 	return 0;
 }
-static void list_nothing()
+
+/**
+ * @ingroup grp_cmd
+ * @brief Display the `list` message when there is no lock (callback of
+ * foreach_sync).
+ */
+static void list_nothing(void)
 {
 	fprintf(stdout, "Currently, you have no locks");
 	print_scope();
