@@ -150,8 +150,8 @@ semcmd [OPTIONS] <clean|list> | <create|lock|unlock|destroy|infos> <name_lock>
 |-------|------|-------------|
 | `-h` | `--help` | Display help and exit |
 | `-V` | `--version` | Display version number and exit |
-| `-f` | `--force` | Force destruction of locks in use (see warning below) |
-| `-l` | `--locked` | Create lock in LOCKED state (barrier setup) |
+| `-f` | `--force` | Force destruction of locks in use (`destroy` and `clean` only, see warning below) |
+| `-l` | `--locked` | Create lock in LOCKED state (`create` only, barrier setup) |
 
 > [!WARNING]
 > Using `--force` with locked semaphores may cause undefined behavior for processes holding the lock.

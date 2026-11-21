@@ -385,6 +385,19 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	cmd->cmd = argv[optind];
 	cmd->name = argv[optind + 1];
 
+	// Check that the options apply to the command
+	if (!cmd->init_value && strcmp(cmd->cmd, "create")) {
+		usage(stderr, argv[0], "The option --locked/-l only applies to the command 'create'.",
+		      SHORT_USAGE);
+		exit(USAGE_ERR);
+	}
+	if (cmd->force_flag && strcmp(cmd->cmd, "destroy") && strcmp(cmd->cmd, "clean")) {
+		usage(stderr, argv[0],
+		      "The option --force/-f only applies to the commands 'destroy' and 'clean'.",
+		      SHORT_USAGE);
+		exit(USAGE_ERR);
+	}
+
 	unsigned long uid = (unsigned long)getuid();
 	const char *namespace = get_namespace();
 	check_name(namespace, "namespace (SEMCMD_NAMESPACE)");
