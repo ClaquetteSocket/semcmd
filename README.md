@@ -25,7 +25,7 @@ Perfect for scenarios ranging from **database migration scripts** and **log file
 
 ### Prerequisites
 - GCC compiler with C11 support
-- POSIX-compliant system (Linux). Note: named POSIX semaphore behavior may vary on macOS.
+- Linux (macOS is not supported yet, see the roadmap).
 - Make utility
 
 ### Build from Source
@@ -277,7 +277,7 @@ Each lock is stored in `/dev/shm` as `sem.semcmd.<uid>.<namespace>.<lock_name>`,
 
 - **Semaphore Values**: Limited to binary semaphores (0 or 1) for educational simplicity
 - **Lock Validation**: Prevents unlocking already unlocked semaphores
-- **Platform Support**: POSIX semaphores only (Linux, macOS, etc.)
+- **Platform Support**: Linux only (see macOS support in the roadmap below)
 - **Wait Queues**: Cannot display waiting process count due to POSIX limitations
 
 ### Future Enhancements
@@ -288,6 +288,9 @@ Each lock is stored in `/dev/shm` as `sem.semcmd.<uid>.<namespace>.<lock_name>`,
 - [ ] **Process Monitoring**: Better visibility into semaphore usage
 - [ ] **Action Logging**: Add support for logging semaphore actions (create, lock, unlock, destroy) to a file for audit and debugging purposes
 - [ ] **Wildcards Support**: Allow `destroy` and `infos` commands to accept wildcard patterns for batch operations (e.g., `semcmd destroy mylock*`)
+- [ ] **macOS Support**: macOS implements neither `sem_getvalue()` nor `/dev/shm`, so reading the lock state and listing locks require another mechanism
+- [ ] **Non-Blocking Lock**: `semcmd trylock <name>` to acquire a lock without waiting (`sem_trywait()`), with a dedicated exit code if it is already held
+- [ ] **List All Namespaces**: `semcmd list --all` to display your locks in every namespace
 
 ## Error Codes
 
