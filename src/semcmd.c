@@ -237,7 +237,7 @@ static void usage(FILE *file_ptr, const char *path, const char *msg, int long_ve
 			"  -f, --force\tForce the destruction (destroy/clean) of the lock if in use.\n\t"
 			"        Note: behavior is undefined for the process holding the lock.\n");
 		fprintf(file_ptr,
-			"  -l, --locked\tCreates the lock in the LOCK state to set up a barrier.\n");
+			"  -l, --locked\tCreates the lock in the LOCKED state to set up a barrier.\n");
 
 		unsigned long uid = (unsigned long)getuid();
 		struct passwd *passwd_entry = getpwuid(getuid());
@@ -816,7 +816,7 @@ static int infos(const struct sync_cmd *cmd, const char *indent)
 	err = read_sync(my_sem, cmd, &value);
 	if (!err)
 		fprintf(stdout, "%s%s lock is %s.\n", indent ? indent : "", cmd->name,
-			value > 0 ? "UNLOCK" : "LOCK");
+			value > 0 ? "UNLOCKED" : "LOCKED");
 	if (close_sync(my_sem, cmd) && !err)
 		err = CLOSE_ERR;
 	return err;

@@ -167,12 +167,12 @@ semcmd [OPTIONS] <clean|list> | <create|lock|unlock|destroy|infos> <name_lock>
 ```bash
 # Create and check a simple lock
 semcmd create test_lock
-semcmd infos test_lock    # Output: test_lock lock is UNLOCK
+semcmd infos test_lock    # Output: test_lock lock is UNLOCKED.
 semcmd list              # Shows all your locks
 
 # Use the lock
 semcmd lock test_lock
-semcmd infos test_lock    # Output: test_lock lock is LOCK
+semcmd infos test_lock    # Output: test_lock lock is LOCKED.
 semcmd unlock test_lock
 
 # Clean up
