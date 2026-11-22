@@ -90,6 +90,11 @@ Perfect for scenarios ranging from **database migration scripts** and **log file
 make install-completions PREFIX=~/.local
 ```
 
+Bash finds the completion automatically. For **zsh**, `~/.local/share/zsh/site-functions` is not searched by default: add this line to `~/.zshrc`, before `compinit`:
+```zsh
+fpath=(~/.local/share/zsh/site-functions $fpath)
+```
+
 **System-wide installation:**
 ```bash
 sudo make install-completions
@@ -108,7 +113,7 @@ sudo cp completions/_semcmd_completion.bash /usr/share/bash-completion/completio
 
 For **zsh**:
 ```bash
-# Local installation
+# Local installation (then add the fpath line above to ~/.zshrc)
 mkdir -p ~/.local/share/zsh/site-functions
 cp completions/_semcmd ~/.local/share/zsh/site-functions/_semcmd
 # Or system-wide

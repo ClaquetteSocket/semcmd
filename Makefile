@@ -8,16 +8,9 @@ override PREFIX := $(patsubst ~/%,$(HOME)/%,$(PREFIX))
 BINDIR = $(PREFIX)/bin
 
 BASH_COMPLETION_DIR = $(PREFIX)/share/bash-completion/completions
-
-# System-wide prefix: standard zsh directory. Prefix in $HOME: zinit
-# completions if available, ~/.zfunc otherwise.
-ifeq ($(filter $(HOME)/%,$(PREFIX)),)
-  ZSH_COMPLETION_DIR = $(PREFIX)/share/zsh/site-functions
-else ifneq ($(wildcard $(PREFIX)/share/zinit/completions),)
-  ZSH_COMPLETION_DIR = $(PREFIX)/share/zinit/completions
-else
-  ZSH_COMPLETION_DIR = $(HOME)/.zfunc
-endif
+ZSH_COMPLETION_DIR = $(PREFIX)/share/zsh/site-functions
+# Directories in the default fpath of zsh: no configuration needed
+ZSH_DEFAULT_FPATH = /usr/share/zsh/site-functions /usr/local/share/zsh/site-functions
 
 all : semcmd
 
@@ -39,6 +32,10 @@ install-completions : install
 	@install -d "$(ZSH_COMPLETION_DIR)" || { $(call install_error,creating $(ZSH_COMPLETION_DIR)); }
 	@install -m 644 completions/_semcmd_completion.bash "$(BASH_COMPLETION_DIR)/semcmd" || { $(call install_error,installing bash completion); }
 	@install -m 644 completions/_semcmd "$(ZSH_COMPLETION_DIR)/_semcmd" || { $(call install_error,installing zsh completion); }
+ifeq ($(filter $(ZSH_DEFAULT_FPATH),$(ZSH_COMPLETION_DIR)),)
+	@echo "Note for zsh users: add this line to ~/.zshrc, before 'compinit', then restart your shell:"
+	@echo "  fpath=($(ZSH_COMPLETION_DIR) \$$fpath)"
+endif
 
 uninstall :
 	@rm -f "$(BINDIR)/semcmd" || { $(call install_error,removing semcmd from $(BINDIR)); }
