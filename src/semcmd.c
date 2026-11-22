@@ -649,6 +649,9 @@ static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_
 		for (int i = 0; i < (int)gstruct.gl_pathc; i++) {
 			cmd->shm_file = gstruct.gl_pathv[i] + sizeof(SHM_DIR) + 4;
 			cmd->name = gstruct.gl_pathv[i] + strlen(pattern) - 1;
+			// When stdout is redirected, it is fully buffered: flush it so that
+			// an error on this lock (stderr) appears after the previous output
+			fflush(stdout);
 			int err = action(cmd);
 			if (err)
 				result = err;
