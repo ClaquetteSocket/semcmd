@@ -17,9 +17,11 @@ all : semcmd
 semcmd : Makefile src/semcmd.c
 	$(CC) $(CFLAGS) src/semcmd.c -o semcmd
 
+# The failed command has already displayed the cause of the error: only report
+# the failed step, and suggest a fix for the most common cause.
 define install_error
-	echo "Permission denied: $1"; \
-	echo "Try: make $@ PREFIX=\$$HOME/.local"; \
+	echo "Error: $1 failed (see the message above)." >&2; \
+	echo "If you cannot write to $(PREFIX), use 'sudo make $@' or 'make $@ PREFIX=\$$HOME/.local'." >&2; \
 	exit 1
 endef
 
