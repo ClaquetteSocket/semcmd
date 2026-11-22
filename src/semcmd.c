@@ -534,13 +534,34 @@ static sem_t *init_sync(const struct sync_cmd *cmd)
 
 /**
  * @ingroup grp_basic
+ * @brief Checking whether a semaphore file belongs to another user
+ *
+ * Since SHM_DIR is writable by everyone, another user may create a file with
+ * the name of one of your locks: such a file must not be used.
+ *
+ * @param path The path of the semaphore file.
+ * @param uid Filled with the owner of the file if it belongs to another user.
+ * @return 1 if the file belongs to another user, 0 otherwise (including if it
+ * does not exist).
+ */
+static int is_foreign(const char *path, unsigned long *uid)
+{
+	struct stat st;
+
+	if (stat(path, &st) != 0 || st.st_uid == getuid())
+		return 0;
+	*uid = (unsigned long)st.st_uid;
+	return 1;
+}
+
+/**
+ * @ingroup grp_basic
  * @brief Opening a named semaphore
  *
  * This function opens a named semaphore for reading and writing. It returns an
  * error message if the semaphore does not exist.
  *
- * Since SHM_DIR is writable by everyone, another user may create a file with
- * the name of one of your locks: such a file is refused.
+ * A file that belongs to another user is refused (see is_foreign()).
  *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
  * @return A pointer to the `sem_t` structure corresponding to the opened
@@ -549,12 +570,12 @@ static sem_t *init_sync(const struct sync_cmd *cmd)
 static sem_t *open_sync(const struct sync_cmd *cmd)
 {
 	char path[sizeof(SHM_DIR "/sem.") + SEM_NAME_MAX];
-	struct stat st;
+	unsigned long uid;
 
 	snprintf(path, sizeof(path), "%s/sem.%s", SHM_DIR, cmd->shm_file);
-	if (stat(path, &st) == 0 && st.st_uid != getuid()) {
+	if (is_foreign(path, &uid)) {
 		fprintf(stderr, "Error: lock '%s' belongs to another user (uid %lu): see '%s'.\n",
-			cmd->name, (unsigned long)st.st_uid, path);
+			cmd->name, uid, path);
 		fail(cmd, OPEN_ERR);
 		return SEM_FAILED;
 	}
@@ -633,8 +654,10 @@ static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd, int *value)
  * as arguments: the first is called before the loop, the second for each lock
  * found, and the third if no lock is found.
  *
- * An error on a lock does not stop the loop (see fail()): the error is
- * displayed, and the loop goes on with the other locks.
+ * Files that belong to other users are ignored with a warning (see
+ * is_foreign()), so that they are neither counted nor used. An error on a lock
+ * does not stop the loop (see fail()): the error is displayed, and the loop
+ * goes on with the other locks.
  *
  * @param first The function to call before the loop. It takes the number of
  * locks found as an argument.
@@ -668,12 +691,28 @@ static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_
 		exit(SEARCH_ERR);
 	}
 
-	if (gstruct.gl_pathc) {
+	// Ignore the files of other users, so that they are neither counted nor used
+	char **paths = malloc((gstruct.gl_pathc + 1) * sizeof(*paths));
+	if (!paths) {
+		fprintf(stderr, "Error: out of memory.\n");
+		exit(ALLOC_ERR);
+	}
+	int num = 0;
+	for (size_t i = 0; i < gstruct.gl_pathc; i++) {
+		unsigned long uid;
+		if (is_foreign(gstruct.gl_pathv[i], &uid))
+			fprintf(stderr, "Warning: ignoring '%s', which belongs to another user (uid %lu).\n",
+				gstruct.gl_pathv[i], uid);
+		else
+			paths[num++] = gstruct.gl_pathv[i];
+	}
+
+	if (num) {
 		if (first)
-			first(gstruct.gl_pathc);
-		for (int i = 0; i < (int)gstruct.gl_pathc; i++) {
-			cmd->shm_file = gstruct.gl_pathv[i] + sizeof(SHM_DIR) + 4;
-			cmd->name = gstruct.gl_pathv[i] + strlen(pattern) - 1;
+			first(num);
+		for (int i = 0; i < num; i++) {
+			cmd->shm_file = paths[i] + sizeof(SHM_DIR) + 4;
+			cmd->name = paths[i] + strlen(pattern) - 1;
 			// When stdout is redirected, it is fully buffered: flush it so that
 			// an error on this lock (stderr) appears after the previous output
 			fflush(stdout);
@@ -685,6 +724,7 @@ static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_
 		nothing();
 	}
 
+	free(paths);
 	globfree(&gstruct);
 	free(pattern);
 	return result;
