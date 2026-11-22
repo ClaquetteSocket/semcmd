@@ -1,38 +1,55 @@
 #compdef semcmd
 
 _semcmd() {
-    local context state line
+    local curcontext="$curcontext" state line
     typeset -A opt_args
 
-    _arguments \
-        '(-h --help)'{-h,--help}'[Display help and exit]' \
-        '(-V --version)'{-V,--version}'[Display version and exit]' \
-        '(-f --force)'{-f,--force}'[Force destruction of lock if in use]' \
-        '(-l --locked)'{-l,--locked}'[Create lock in LOCKED state]' \
-        '*::semcmd command:_semcmd_command'
-}
+    # Before the command: only help, version and the commands
+    _arguments -C \
+        '(- : *)'{-h,--help}'[Display help and exit]' \
+        '(- : *)'{-V,--version}'[Display version and exit]' \
+        '1:command:->command' \
+        '*::argument:->argument'
 
-_semcmd_command() {
-    local -a commands
-    commands=(
-        'create:Create a new lock'
-        'lock:Acquire a lock'
-        'unlock:Release a lock'
-        'destroy:Delete a lock'
-        'infos:Display lock status'
-        'list:List all your locks'
-        'clean:Destroy all your locks'
-    )
-    
-    if (( CURRENT == 1 )); then
-        _describe 'semcmd commands' commands
-    elif (( CURRENT == 2 )); then
-        case "$words[1]" in
-            create|lock|unlock|destroy|infos)
-                _semcmd_locks
-                ;;
-        esac
-    fi
+    case $state in
+        command)
+            local -a commands
+            commands=(
+                'create:Create a new lock'
+                'lock:Acquire a lock'
+                'unlock:Release a lock'
+                'destroy:Delete a lock'
+                'infos:Display lock status'
+                'list:List all your locks'
+                'clean:Destroy all your locks'
+            )
+            _describe 'semcmd commands' commands
+            ;;
+        argument)
+            # After the command: its own options and lock names
+            curcontext="${curcontext%:*:*}:semcmd-$words[1]:"
+            case $words[1] in
+                create)
+                    # A new lock: existing names are not proposed
+                    _arguments \
+                        '(-l --locked)'{-l,--locked}'[Create lock in LOCKED state]' \
+                        '1:new lock name:'
+                    ;;
+                destroy)
+                    _arguments \
+                        '(-f --force)'{-f,--force}'[Force destruction of lock if in use]' \
+                        '1:lock:_semcmd_locks'
+                    ;;
+                clean)
+                    _arguments \
+                        '(-f --force)'{-f,--force}'[Force destruction of locks in use]'
+                    ;;
+                lock|unlock|infos)
+                    _arguments '1:lock:_semcmd_locks'
+                    ;;
+            esac
+            ;;
+    esac
 }
 
 _semcmd_locks() {
