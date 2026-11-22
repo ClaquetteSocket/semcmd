@@ -163,6 +163,10 @@ static const char *get_namespace(void)
  *
  * @var sync_cmd::name
  * The 'name' member contains the name of the lock.
+ *
+ * @var sync_cmd::keep_going
+ * The 'keep_going' member tells the basic functions to return errors instead
+ * of exiting, so that list and clean can go on with the other locks.
  */
 struct sync_cmd {
 	char *bin; // name of the binary for error messages
@@ -172,6 +176,7 @@ struct sync_cmd {
 	char *shm_file; // name of the shared memory file
 	char *prefix; // prefix for the lock name
 	char *name; // name of the lock
+	int keep_going; // return errors instead of exiting (list and clean)
 };
 
 #define SHORT_USAGE 0
@@ -305,6 +310,7 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 	int version_flag = 0;
 	cmd->force_flag = 0;
 	cmd->init_value = 1;
+	cmd->keep_going = 0;
 
 	struct option longopts[] = { { "help", no_argument, &help_flag, 1 },
 				     { "version", no_argument, &version_flag, 1 },
@@ -448,7 +454,29 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
  * These functions will be used in the following part to implement the different
  * commands offered by `semcmd`.
  *
+ * On failure, these functions display an error message and exit with a
+ * specific code, except in list and clean (see fail()).
+ *
  ******************************************************************************/
+
+/**
+ * @ingroup grp_basic
+ * @brief Handling the failure of an operation on a lock
+ *
+ * For a command on a single lock, the program exits with the given code. For
+ * list and clean, which loop over all locks (keep_going is set), the code is
+ * returned so that the loop can go on with the other locks.
+ *
+ * @param cmd The sync_cmd structure of the command.
+ * @param code The error code.
+ * @return The error code (only if keep_going is set).
+ */
+static int fail(const struct sync_cmd *cmd, int code)
+{
+	if (!cmd->keep_going)
+		exit(code);
+	return code;
+}
 
 /**
  * @ingroup grp_basic
@@ -486,12 +514,26 @@ static sem_t *init_sync(const struct sync_cmd *cmd)
  * This function opens a named semaphore for reading and writing. It returns an
  * error message if the semaphore does not exist.
  *
+ * Since SHM_DIR is writable by everyone, another user may create a file with
+ * the name of one of your locks: such a file is refused.
+ *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
  * @return A pointer to the `sem_t` structure corresponding to the opened
- * semaphore.
+ * semaphore, or SEM_FAILED on error (only if keep_going is set).
  */
 static sem_t *open_sync(const struct sync_cmd *cmd)
 {
+	char path[sizeof(SHM_DIR "/sem.") + SEM_NAME_MAX];
+	struct stat st;
+
+	snprintf(path, sizeof(path), "%s/sem.%s", SHM_DIR, cmd->shm_file);
+	if (stat(path, &st) == 0 && st.st_uid != getuid()) {
+		fprintf(stderr, "Error: lock '%s' belongs to another user (uid %lu): see '%s'.\n",
+			cmd->name, (unsigned long)st.st_uid, path);
+		fail(cmd, OPEN_ERR);
+		return SEM_FAILED;
+	}
+
 	sem_t *my_sem = NULL;
 	if ((my_sem = sem_open(cmd->shm_file, O_RDWR, 0, 0)) == SEM_FAILED) {
 		if (errno == ENOENT) {
@@ -502,7 +544,7 @@ static sem_t *open_sync(const struct sync_cmd *cmd)
 			fprintf(stderr, "Error: cannot open lock '%s': %s.\n", cmd->name,
 				strerror(errno));
 		}
-		exit(OPEN_ERR);
+		fail(cmd, OPEN_ERR);
 	}
 	return my_sem;
 }
@@ -517,43 +559,45 @@ static sem_t *open_sync(const struct sync_cmd *cmd)
  * @param my_sem A pointer to the `sem_t` structure corresponding to the opened
  * semaphore.
  * @param cmd The sync_cmd structure containing the name of the semaphore.
+ * @return 0 on success, an error code otherwise (only if keep_going is set).
  */
-static void close_sync(sem_t *my_sem, const struct sync_cmd *cmd)
+static int close_sync(sem_t *my_sem, const struct sync_cmd *cmd)
 {
 	if (sem_close(my_sem) != 0) {
 		fprintf(stderr, "Error: cannot close lock '%s': %s.\n", cmd->name, strerror(errno));
-		exit(CLOSE_ERR);
+		return fail(cmd, CLOSE_ERR);
 	}
+	return 0;
 }
 
 /**
  * @ingroup grp_basic
  * @brief Reading the value of a named semaphore
  *
- * This function reads the value of a named semaphore. It returns an error if
- * the semaphore does not exist. It also verifies that the value of the
- * semaphore is not greater than 1. Indeed, by default, semcmd does not allow
- * unlocking a semaphore that is not locked.
+ * This function reads the value of a named semaphore. It also verifies that the
+ * value of the semaphore is not greater than 1. Indeed, by default, semcmd does
+ * not allow unlocking a semaphore that is not locked.
  *
  * @param my_sem A pointer to the `sem_t` structure corresponding to the opened
  * semaphore.
  * @param cmd The sync_cmd structure containing the name of the semaphore.
- * @return The value of the semaphore.
+ * @param value Filled with the value of the semaphore.
+ * @return 0 on success, an error code otherwise (only if keep_going is set).
  */
-static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd)
+static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd, int *value)
 {
-	int current_val;
-	if (sem_getvalue(my_sem, &current_val) != 0) {
+	if (sem_getvalue(my_sem, value) != 0) {
 		fprintf(stderr, "Error: cannot read the value of lock '%s': %s.\n", cmd->name,
 			strerror(errno));
-		exit(READ_ERR);
-	} else if (current_val > 1) {
+		return fail(cmd, READ_ERR);
+	} else if (*value > 1) {
 		fprintf(stderr,
 			"Error: lock '%s' is corrupted: its value is %d, while it should be 0 or 1.\n",
-			cmd->name, current_val);
-		exit(BADVAL_ERR);
+			cmd->name, *value);
+		fprintf(stderr, "To remove it, use: '%s destroy --force %s'\n", cmd->bin, cmd->name);
+		return fail(cmd, BADVAL_ERR);
 	}
-	return current_val;
+	return 0;
 }
 
 /**
@@ -564,20 +608,26 @@ static int read_sync(sem_t *my_sem, const struct sync_cmd *cmd)
  * as arguments: the first is called before the loop, the second for each lock
  * found, and the third if no lock is found.
  *
+ * An error on a lock does not stop the loop (see fail()): the error is
+ * displayed, and the loop goes on with the other locks.
+ *
  * @param first The function to call before the loop. It takes the number of
  * locks found as an argument.
  * @param action The function to call for each lock found. It takes a sync_cmd
- * structure as an argument and returns 0 on success, non-zero on failure.
+ * structure as an argument and returns 0 on success, an error code otherwise.
  * @param nothing The function to call if no lock is found.
  * @param cmd The sync_cmd structure containing the prefix of `semcmd` semaphore
  * files.
- * @return The number of locks for which the action failed.
+ * @return 0 if the action succeeded for all locks, the error code of the last
+ * failure otherwise.
  */
 static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_cmd *),
 			void (*nothing)(void), struct sync_cmd *cmd)
 {
-	int failures = 0;
+	int result = 0;
 	glob_t gstruct;
+
+	cmd->keep_going = 1;
 
 	int size = snprintf(NULL, 0, "%s/sem.%s.*", SHM_DIR, cmd->prefix);
 	char *pattern = (char *)malloc(size + 1);
@@ -599,8 +649,9 @@ static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_
 		for (int i = 0; i < (int)gstruct.gl_pathc; i++) {
 			cmd->shm_file = gstruct.gl_pathv[i] + sizeof(SHM_DIR) + 4;
 			cmd->name = gstruct.gl_pathv[i] + strlen(pattern) - 1;
-			if (action(cmd))
-				failures++;
+			int err = action(cmd);
+			if (err)
+				result = err;
 		}
 	} else {
 		nothing();
@@ -608,7 +659,7 @@ static int foreach_sync(void (*first)(int num), int (*action)(const struct sync_
 
 	globfree(&gstruct);
 	free(pattern);
-	return failures;
+	return result;
 }
 
 /*******************************************************************************
@@ -643,19 +694,28 @@ static void create(const struct sync_cmd *cmd)
  *
  * This function destroys a `semcmd` lock with the specified name in the
  * `sync_cmd` structure. If the lock is currently in use, an error message is
- * displayed. If the
- * `--force` option is used, the lock is destroyed even if in use.
+ * displayed. If the `--force` option is used, the lock is destroyed even if in
+ * use, and its value is not even read, so that a corrupted lock can also be
+ * destroyed.
  *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
- * @return 0 if the lock is destroyed, 1 if the lock is in use.
+ * @return 0 if the lock is destroyed, an error code otherwise.
  */
 static int destroy(const struct sync_cmd *cmd)
 {
+	int value = 1, err = 0;
 	sem_t *my_sem = open_sync(cmd);
-	int current_value = read_sync(my_sem, cmd);
-	close_sync(my_sem, cmd);
 
-	if (current_value < 1 && !cmd->force_flag) {
+	if (my_sem == SEM_FAILED)
+		return OPEN_ERR;
+	if (!cmd->force_flag)
+		err = read_sync(my_sem, cmd, &value);
+	if (close_sync(my_sem, cmd) && !err)
+		err = CLOSE_ERR;
+	if (err)
+		return err;
+
+	if (value < 1) {
 		fprintf(stderr, "Error: cannot destroy lock '%s': it is currently locked.\n",
 			cmd->name);
 		fprintf(stderr, "To resolve the issue, you can:\n");
@@ -664,7 +724,7 @@ static int destroy(const struct sync_cmd *cmd)
 			cmd->bin, cmd->name);
 		fprintf(stderr, "\t- force the destruction of all your locks with: '%s clean --force'\n",
 			cmd->bin);
-		return 1;
+		return UNLINK_ERR;
 	}
 
 	if (sem_unlink(cmd->shm_file) != 0) {
@@ -674,7 +734,7 @@ static int destroy(const struct sync_cmd *cmd)
 		else
 			fprintf(stderr, "Error: cannot destroy lock '%s': %s.\n", cmd->name,
 				strerror(errno));
-		exit(UNLINK_ERR);
+		return fail(cmd, UNLINK_ERR);
 	}
 	return 0;
 }
@@ -713,9 +773,11 @@ static void lock(const struct sync_cmd *cmd)
  */
 static void unlock(const struct sync_cmd *cmd)
 {
+	int value;
 	sem_t *my_sem = open_sync(cmd);
 
-	if (read_sync(my_sem, cmd) > 0) {
+	read_sync(my_sem, cmd, &value);
+	if (value > 0) {
 		fprintf(stderr, "Error: cannot release lock '%s': it is not locked.\n", cmd->name);
 		exit(UNLOCK_ERR);
 	}
@@ -742,16 +804,22 @@ static void unlock(const struct sync_cmd *cmd)
  *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
  * @param indent An optional string to indent the output.
+ * @return 0 on success, an error code otherwise.
  */
-static void infos(const struct sync_cmd *cmd, const char *indent)
+static int infos(const struct sync_cmd *cmd, const char *indent)
 {
+	int value, err;
 	sem_t *my_sem = open_sync(cmd);
-	int value = read_sync(my_sem, cmd);
 
-	fprintf(stdout, "%s%s lock is %s.\n", indent ? indent : "", cmd->name,
-		value > 0 ? "UNLOCK" : "LOCK");
-
-	close_sync(my_sem, cmd);
+	if (my_sem == SEM_FAILED)
+		return OPEN_ERR;
+	err = read_sync(my_sem, cmd, &value);
+	if (!err)
+		fprintf(stdout, "%s%s lock is %s.\n", indent ? indent : "", cmd->name,
+			value > 0 ? "UNLOCK" : "LOCK");
+	if (close_sync(my_sem, cmd) && !err)
+		err = CLOSE_ERR;
+	return err;
 }
 
 /**
@@ -776,14 +844,15 @@ static void print_scope(void)
  * @brief Destroy one lock for `clean` (callback of foreach_sync).
  *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
- * @return 0 if the lock is destroyed, 1 otherwise.
+ * @return 0 if the lock is destroyed, an error code otherwise.
  */
 static int clean_action(const struct sync_cmd *cmd)
 {
-	if (destroy(cmd))
-		return 1;
-	fprintf(stdout, "Lock %s has been deleted.\n", cmd->name);
-	return 0;
+	int err = destroy(cmd);
+
+	if (!err)
+		fprintf(stdout, "Lock %s has been deleted.\n", cmd->name);
+	return err;
 }
 
 /**
@@ -808,7 +877,8 @@ static void clean_nothing(void)
  *
  * @param cmd The sync_cmd structure containing the prefix to identify `semcmd`
  * semaphore files.
- * @return The number of locks that could not be destroyed.
+ * @return 0 if all locks are destroyed, the error code of the last failure
+ * otherwise.
  */
 static int clean(struct sync_cmd *cmd)
 {
@@ -833,12 +903,11 @@ static void list_first(int num)
  * @brief Display the status of one lock for `list` (callback of foreach_sync).
  *
  * @param cmd The sync_cmd structure containing the name of the semaphore.
- * @return Always 0.
+ * @return 0 on success, an error code otherwise.
  */
 static int list_action(const struct sync_cmd *cmd)
 {
-	infos(cmd, "  - ");
-	return 0;
+	return infos(cmd, "  - ");
 }
 
 /**
@@ -862,10 +931,11 @@ static void list_nothing(void)
  *
  * @param cmd The sync_cmd structure containing the prefix to identify `semcmd`
  * semaphore files.
+ * @return 0 on success, the error code of the last failure otherwise.
  */
-static void list(struct sync_cmd *cmd)
+static int list(struct sync_cmd *cmd)
 {
-	foreach_sync(list_first, list_action, list_nothing, cmd);
+	return foreach_sync(list_first, list_action, list_nothing, cmd);
 }
 
 /**
@@ -892,16 +962,14 @@ int main(int argc, char **argv)
 	else if (!strcmp(user_cmd.cmd, "unlock"))
 		unlock(&user_cmd);
 	else if (!strcmp(user_cmd.cmd, "infos"))
-		infos(&user_cmd, NULL);
-	else if (!strcmp(user_cmd.cmd, "destroy")) {
-		if (destroy(&user_cmd))
-			return UNLINK_ERR;
-	} else if (!strcmp(user_cmd.cmd, "list"))
-		list(&user_cmd);
-	else if (!strcmp(user_cmd.cmd, "clean")) {
-		if (clean(&user_cmd))
-			return UNLINK_ERR;
-	} else {
+		return infos(&user_cmd, NULL);
+	else if (!strcmp(user_cmd.cmd, "destroy"))
+		return destroy(&user_cmd);
+	else if (!strcmp(user_cmd.cmd, "list"))
+		return list(&user_cmd);
+	else if (!strcmp(user_cmd.cmd, "clean"))
+		return clean(&user_cmd);
+	else {
 		usage(stderr, argv[0], "The command is not valid.", SHORT_USAGE);
 		return USAGE_ERR;
 	}
