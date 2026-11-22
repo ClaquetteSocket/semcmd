@@ -290,6 +290,24 @@ static void check_name(const char *name, const char *what)
 
 /**
  * @ingroup grp_parsing
+ * @brief Check that a string is a command of semcmd.
+ *
+ * @param name The string to check.
+ * @return 1 if it is a command, 0 otherwise.
+ */
+static int is_command(const char *name)
+{
+	static const char *const commands[] = { "create", "lock", "unlock", "destroy",
+						 "infos",  "list", "clean" };
+
+	for (size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); i++)
+		if (!strcmp(name, commands[i]))
+			return 1;
+	return 0;
+}
+
+/**
+ * @ingroup grp_parsing
  * @brief Parse the command line arguments and populate a sync_cmd structure.
  *
  * This function parses (using the getopt library) the command line arguments
@@ -358,6 +376,16 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 		exit(0);
 	}
 
+	// Check the command, before its arguments and options
+	if (argc - optind == 0) {
+		usage(stderr, argv[0], "The command is missing.", SHORT_USAGE);
+		exit(USAGE_ERR);
+	}
+	if (!is_command(argv[optind])) {
+		usage(stderr, argv[0], "The command is not valid.", SHORT_USAGE);
+		exit(USAGE_ERR);
+	}
+
 	// Check the number of arguments
 	switch (argc - optind) {
 		case 1:
@@ -378,9 +406,6 @@ static void args_parse(int argc, char *argv[], struct sync_cmd *cmd)
 				exit(USAGE_ERR);
 			}
 			break;
-		case 0:
-			usage(stderr, argv[0], "The command is missing.", SHORT_USAGE);
-			exit(USAGE_ERR);
 		default:
 			usage(stderr, argv[0], "Too many arguments.", SHORT_USAGE);
 			exit(USAGE_ERR);
@@ -972,10 +997,6 @@ int main(int argc, char **argv)
 		return list(&user_cmd);
 	else if (!strcmp(user_cmd.cmd, "clean"))
 		return clean(&user_cmd);
-	else {
-		usage(stderr, argv[0], "The command is not valid.", SHORT_USAGE);
-		return USAGE_ERR;
-	}
 
 	return 0;
 }
